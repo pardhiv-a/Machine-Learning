@@ -1,22 +1,76 @@
-# A1
+import pandas as pd
 import numpy as np
 
-A= np.array([[20, 6, 2],[16, 3, 6],[27, 6, 2],[19, 1, 2],[24, 4, 2],[22, 1, 5],[15, 4, 2],[18, 4, 2],[21, 1, 4],[16, 2, 4]])
-C = np.array([[386],[289],[393],[110],[280],[167],[271],[274],[148],[198]])
-cols = A.shape[1]
-rows = C.shape[0]
+# ------------------ Functions ------------------
 
-_, singular_vals, _ = np.linalg.svd(C)
-matrix_rank = sum(val > 1e-10 for val in singular_vals)
+def find_purchase_sheet(file_path):
+    """
+    Finds the sheet name that contains 'Purchase' (case-insensitive).
+    Returns the first matching sheet name.
+    """
+    xls = pd.ExcelFile(file_path)
+    for sheet in xls.sheet_names:
+        if "purchase" in sheet.lower():
+            return sheet
+    raise ValueError("No sheet containing 'Purchase' found in the file.")
 
-pseudo_inv = np.linalg.pinv(products)
-costs = pseudo_inv @ payments
+def load_purchase_data(file_path):
+    """
+    Load Purchase Data sheet and segregate into:
+    A = product quantities matrix
+    C = payment vector
+    """
+    sheet_name = find_purchase_sheet(file_path)   # find correct sheet
+    df = pd.read_excel(file_path, sheet_name=sheet_name)
 
-print("RESULTS:")
-print(f"Dimensionality of vector space : {cols}")
-print(f"Number of vectors              : {rows}")
-print(f"Rank of Matrix A               : {matrix_rank}")
-print("\nEstimated cost of each product:")
-print(f"Cost of 1 Candy       : Rs {costs[0][0]:.2f}")
-print(f"Cost of 1 Kg Mango    : Rs {costs[1][0]:.2f}")
-print(f"Cost of 1 Milk Packet : Rs {costs[2][0]:.2f}")
+    # Feature matrix A (Candies, Mangoes, Milk Packets)
+    A = df[["Candies (#)", "Mangoes (Kg)", "Milk Packets (#)"]].values
+
+    # Target vector C (Payments)
+    C = df["Payment (Rs)"].values
+    return A, C
+
+def get_vector_space_info(A):
+    """
+    Compute vector space properties:
+    - Dimensionality
+    - Number of vectors
+    - Rank of A
+    """
+    dimensionality = A.shape[1]
+    num_vectors = A.shape[0]
+    rank = np.linalg.matrix_rank(A)
+    return dimensionality, num_vectors, rank
+
+def compute_product_costs(A, C):
+    """
+    Estimate product costs using pseudo-inverse:
+    Solves AX = C
+    """
+    A_pinv = np.linalg.pinv(A)
+    X = A_pinv @ C
+    return X
+
+# ------------------ Main Program ------------------
+
+if __name__ == "__main__":
+    file_path = "Lab Session Data (1).xlsx"
+
+    # Load data safely
+    A, C = load_purchase_data(file_path)
+
+    # Vector space properties
+    dimensionality, num_vectors, rank = get_vector_space_info(A)
+
+    # Solve for costs
+    product_costs = compute_product_costs(A, C)
+
+    # Results
+    print("Dimensionality of vector space:", dimensionality)
+    print("Number of vectors in this space:", num_vectors)
+    print("Rank of Matrix A:", rank)
+
+    print("\nEstimated Cost per Product:")
+    print("Candies (Rs per unit):", round(product_costs[0], 2))
+    print("Mangoes (Rs per Kg):", round(product_costs[1], 2))
+    print("Milk Packets (Rs per unit):", round(product_costs[2], 2))
